@@ -3,11 +3,27 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 110;
+	objectVersion = 77;
 	objects = {
+
+/* Begin PBXBuildFile section */
+		4A20000C2FEC00000000000C /* BundledTools/Tools in Resources */ = {isa = PBXBuildFile; fileRef = 4A20000D2FEC00000000000D /* BundledTools/Tools */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4A2000072FEC000000000007 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4A182CB22FEBFDFB000A3954 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4A182CB92FEBFDFB000A3954;
+			remoteInfo = Replicate;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		4A182CBA2FEBFDFB000A3954 /* Replicate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Replicate.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A2000012FEC000000000001 /* ReplicateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReplicateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A20000D2FEC00000000000D /* BundledTools/Tools */ = {isa = PBXFileReference; lastKnownFileType = folder; path = BundledTools/Tools; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,13 +32,27 @@
 			path = Replicate;
 			sourceTree = "<group>";
 		};
+		4A2000022FEC000000000002 /* ReplicateTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ReplicateTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		4A182CB72FEBFDFB000A3954 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4A2000042FEC000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -31,6 +61,8 @@
 			isa = PBXGroup;
 			children = (
 				4A182CBC2FEBFDFB000A3954 /* Replicate */,
+				4A2000022FEC000000000002 /* ReplicateTests */,
+				4A20000D2FEC00000000000D /* BundledTools/Tools */,
 				4A182CBB2FEBFDFB000A3954 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -39,6 +71,7 @@
 			isa = PBXGroup;
 			children = (
 				4A182CBA2FEBFDFB000A3954 /* Replicate.app */,
+				4A2000012FEC000000000001 /* ReplicateTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -53,8 +86,11 @@
 				4A182CB62FEBFDFB000A3954 /* Sources */,
 				4A182CB72FEBFDFB000A3954 /* Frameworks */,
 				4A182CB82FEBFDFB000A3954 /* Resources */,
+				4A20000E2FEC00000000000E /* Sign Bundled Tools */,
 			);
 			buildRules = (
+			);
+			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
 				4A182CBC2FEBFDFB000A3954 /* Replicate */,
@@ -63,6 +99,27 @@
 			productName = Replicate;
 			productReference = 4A182CBA2FEBFDFB000A3954 /* Replicate.app */;
 			productType = "com.apple.product-type.application";
+		};
+		4A2000062FEC000000000006 /* ReplicateTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4A20000B2FEC00000000000B /* Build configuration list for PBXNativeTarget "ReplicateTests" */;
+			buildPhases = (
+				4A2000032FEC000000000003 /* Sources */,
+				4A2000042FEC000000000004 /* Frameworks */,
+				4A2000052FEC000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4A2000082FEC000000000008 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				4A2000022FEC000000000002 /* ReplicateTests */,
+			);
+			name = ReplicateTests;
+			productName = ReplicateTests;
+			productReference = 4A2000012FEC000000000001 /* ReplicateTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -76,6 +133,10 @@
 				TargetAttributes = {
 					4A182CB92FEBFDFB000A3954 = {
 						CreatedOnToolsVersion = 27.0;
+					};
+					4A2000062FEC000000000006 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 4A182CB92FEBFDFB000A3954;
 					};
 				};
 			};
@@ -94,6 +155,7 @@
 			projectRoot = "";
 			targets = (
 				4A182CB92FEBFDFB000A3954 /* Replicate */,
+				4A2000062FEC000000000006 /* ReplicateTests */,
 			);
 		};
 /* End PBXProject section */
@@ -101,21 +163,72 @@
 /* Begin PBXResourcesBuildPhase section */
 		4A182CB82FEBFDFB000A3954 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A20000C2FEC00000000000C /* BundledTools/Tools in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4A2000052FEC000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		4A20000E2FEC00000000000E /* Sign Bundled Tools */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/Scripts/sign-bundled-tools.sh",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Tools",
+			);
+			name = "Sign Bundled Tools";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PROJECT_DIR}/Scripts/sign-bundled-tools.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4A182CB62FEBFDFB000A3954 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4A2000032FEC000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		4A2000082FEC000000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4A182CB92FEBFDFB000A3954 /* Replicate */;
+			targetProxy = 4A2000072FEC000000000007 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
-		4A182CC32FEBFDFC000A3954 /* Debug configuration for PBXProject "Replicate" */ = {
+		4A182CC32FEBFDFC000A3954 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -169,7 +282,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.6;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -179,7 +292,7 @@
 			};
 			name = Debug;
 		};
-		4A182CC42FEBFDFC000A3954 /* Release configuration for PBXProject "Replicate" */ = {
+		4A182CC42FEBFDFC000A3954 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -227,7 +340,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.6;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
@@ -235,7 +348,7 @@
 			};
 			name = Release;
 		};
-		4A182CC62FEBFDFC000A3954 /* Debug configuration for PBXNativeTarget "Replicate" */ = {
+		4A182CC62FEBFDFC000A3954 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -247,8 +360,11 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -267,7 +383,7 @@
 			};
 			name = Debug;
 		};
-		4A182CC72FEBFDFC000A3954 /* Release configuration for PBXNativeTarget "Replicate" */ = {
+		4A182CC72FEBFDFC000A3954 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -279,8 +395,11 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -299,27 +418,83 @@
 			};
 			name = Release;
 		};
+		4A2000092FEC000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JLHW9H4BKV;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.hubowen.ReplicateTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Replicate.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Replicate";
+				WRAPPER_EXTENSION = xctest;
+			};
+			name = Debug;
+		};
+		4A20000A2FEC00000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JLHW9H4BKV;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.hubowen.ReplicateTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Replicate.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Replicate";
+				WRAPPER_EXTENSION = xctest;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		4A182CB52FEBFDFB000A3954 /* Build configuration list for PBXProject "Replicate" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				4A182CC32FEBFDFC000A3954 /* Debug configuration for PBXProject "Replicate" */,
-				4A182CC42FEBFDFC000A3954 /* Release configuration for PBXProject "Replicate" */,
+				4A182CC32FEBFDFC000A3954 /* Debug */,
+				4A182CC42FEBFDFC000A3954 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		4A182CC52FEBFDFC000A3954 /* Build configuration list for PBXNativeTarget "Replicate" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				4A182CC62FEBFDFC000A3954 /* Debug configuration for PBXNativeTarget "Replicate" */,
-				4A182CC72FEBFDFC000A3954 /* Release configuration for PBXNativeTarget "Replicate" */,
+				4A182CC62FEBFDFC000A3954 /* Debug */,
+				4A182CC72FEBFDFC000A3954 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4A20000B2FEC00000000000B /* Build configuration list for PBXNativeTarget "ReplicateTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A2000092FEC000000000009 /* Debug */,
+				4A20000A2FEC00000000000A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
 	rootObject = 4A182CB22FEBFDFB000A3954 /* Project object */;
-	validationLevel = 1;
 }
