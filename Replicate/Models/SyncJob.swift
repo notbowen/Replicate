@@ -1,11 +1,20 @@
 import Foundation
 
 struct SyncJob: Identifiable, Codable, Equatable {
+    static let defaultRcloneTransferCount = 16
+    static let minRcloneTransferCount = 1
+    static let maxRcloneTransferCount = 64
+
     var id: UUID
     var name: String
     var isEnabled: Bool
     var deleteExtraneousFiles: Bool
     var watchEnabled: Bool
+    var rcloneTransferCount: Int {
+        didSet {
+            rcloneTransferCount = Self.clampedRcloneTransferCount(rcloneTransferCount)
+        }
+    }
     var sourceBookmark: Data?
     var destinationBookmark: Data?
     var sourceDisplayPath: String
@@ -19,6 +28,7 @@ struct SyncJob: Identifiable, Codable, Equatable {
         isEnabled: Bool = true,
         deleteExtraneousFiles: Bool = false,
         watchEnabled: Bool = false,
+        rcloneTransferCount: Int = Self.defaultRcloneTransferCount,
         sourceBookmark: Data? = nil,
         destinationBookmark: Data? = nil,
         sourceDisplayPath: String = "",
@@ -31,6 +41,7 @@ struct SyncJob: Identifiable, Codable, Equatable {
         self.isEnabled = isEnabled
         self.deleteExtraneousFiles = deleteExtraneousFiles
         self.watchEnabled = watchEnabled
+        self.rcloneTransferCount = Self.clampedRcloneTransferCount(rcloneTransferCount)
         self.sourceBookmark = sourceBookmark
         self.destinationBookmark = destinationBookmark
         self.sourceDisplayPath = sourceDisplayPath
@@ -46,6 +57,59 @@ struct SyncJob: Identifiable, Codable, Equatable {
 
     var isConfigured: Bool {
         sourceBookmark != nil && destinationBookmark != nil
+    }
+
+    static func clampedRcloneTransferCount(_ value: Int) -> Int {
+        min(max(value, minRcloneTransferCount), maxRcloneTransferCount)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case isEnabled
+        case deleteExtraneousFiles
+        case watchEnabled
+        case rcloneTransferCount
+        case sourceBookmark
+        case destinationBookmark
+        case sourceDisplayPath
+        case destinationDisplayPath
+        case lastRunDate
+        case lastErrorMessage
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        deleteExtraneousFiles = try container.decode(Bool.self, forKey: .deleteExtraneousFiles)
+        watchEnabled = try container.decode(Bool.self, forKey: .watchEnabled)
+        rcloneTransferCount = Self.clampedRcloneTransferCount(
+            try container.decodeIfPresent(Int.self, forKey: .rcloneTransferCount) ?? Self.defaultRcloneTransferCount
+        )
+        sourceBookmark = try container.decodeIfPresent(Data.self, forKey: .sourceBookmark)
+        destinationBookmark = try container.decodeIfPresent(Data.self, forKey: .destinationBookmark)
+        sourceDisplayPath = try container.decode(String.self, forKey: .sourceDisplayPath)
+        destinationDisplayPath = try container.decode(String.self, forKey: .destinationDisplayPath)
+        lastRunDate = try container.decodeIfPresent(Date.self, forKey: .lastRunDate)
+        lastErrorMessage = try container.decodeIfPresent(String.self, forKey: .lastErrorMessage)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(deleteExtraneousFiles, forKey: .deleteExtraneousFiles)
+        try container.encode(watchEnabled, forKey: .watchEnabled)
+        try container.encode(rcloneTransferCount, forKey: .rcloneTransferCount)
+        try container.encodeIfPresent(sourceBookmark, forKey: .sourceBookmark)
+        try container.encodeIfPresent(destinationBookmark, forKey: .destinationBookmark)
+        try container.encode(sourceDisplayPath, forKey: .sourceDisplayPath)
+        try container.encode(destinationDisplayPath, forKey: .destinationDisplayPath)
+        try container.encodeIfPresent(lastRunDate, forKey: .lastRunDate)
+        try container.encodeIfPresent(lastErrorMessage, forKey: .lastErrorMessage)
     }
 }
 

@@ -17,6 +17,9 @@ struct ReplicateApp: App {
                 .environmentObject(model)
         } label: {
             Image(systemName: model.menuBarSystemImage)
+                .task {
+                    model.start()
+                }
         }
         .menuBarExtraStyle(.menu)
 

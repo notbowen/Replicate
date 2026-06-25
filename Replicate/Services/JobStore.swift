@@ -1,6 +1,6 @@
 import Foundation
 
-final class JobStore {
+final class JobStore: JobStoring {
     private let defaults: UserDefaults
     private let key = "Replicate.SyncJobs.v1"
 

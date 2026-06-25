@@ -15,7 +15,7 @@ enum FswatchError: LocalizedError {
 }
 
 @MainActor
-final class FswatchService {
+final class FswatchService: FswatchServicing {
     private struct ActiveWatch {
         let process: Process
         let pipe: Pipe

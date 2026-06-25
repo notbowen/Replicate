@@ -48,49 +48,79 @@ struct PendingItem: Identifiable, Codable, Equatable {
         self.path = path
         self.itemizedCode = itemizedCode
     }
+
+    func withJobName(_ jobName: String) -> PendingItem {
+        PendingItem(
+            id: id,
+            jobID: jobID,
+            jobName: jobName,
+            operation: operation,
+            path: path,
+            itemizedCode: itemizedCode
+        )
+    }
 }
 
-enum RsyncItemizedParser {
-    static func parse(_ output: String, jobID: UUID, jobName: String) -> [PendingItem] {
+enum RcloneCombinedParser {
+    static func parse(
+        _ output: String,
+        jobID: UUID,
+        jobName: String,
+        includeDeletes: Bool
+    ) -> [PendingItem] {
         output
             .split(whereSeparator: \.isNewline)
-            .compactMap { parseLine(String($0), jobID: jobID, jobName: jobName) }
+            .compactMap {
+                parseLine(
+                    String($0),
+                    jobID: jobID,
+                    jobName: jobName,
+                    includeDeletes: includeDeletes
+                )
+            }
     }
 
-    static func parseLine(_ line: String, jobID: UUID, jobName: String) -> PendingItem? {
-        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+    static func parseLine(
+        _ line: String,
+        jobID: UUID,
+        jobName: String,
+        includeDeletes: Bool
+    ) -> PendingItem? {
+        guard line.count >= 3 else { return nil }
 
-        let fields = trimmed.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
-        guard fields.count == 2 else { return nil }
+        let code = String(line[line.startIndex])
+        let separatorIndex = line.index(after: line.startIndex)
+        guard line[separatorIndex] == " " else { return nil }
 
-        let code = String(fields[0]).trimmingCharacters(in: .whitespaces)
-        let path = String(fields[1]).trimmingCharacters(in: .whitespaces)
-        guard !code.isEmpty, !path.isEmpty else { return nil }
+        let pathStartIndex = line.index(after: separatorIndex)
+        let path = String(line[pathStartIndex...])
+        guard !path.isEmpty else { return nil }
+
+        guard let operation = operation(for: code, includeDeletes: includeDeletes) else {
+            return nil
+        }
 
         return PendingItem(
             jobID: jobID,
             jobName: jobName,
-            operation: operation(for: code),
+            operation: operation,
             path: path,
             itemizedCode: code
         )
     }
 
-    private static func operation(for code: String) -> PendingOperation {
-        if code.hasPrefix("*deleting") {
-            return .delete
-        }
-
-        if code.contains("+++++++++") {
+    private static func operation(for code: String, includeDeletes: Bool) -> PendingOperation? {
+        switch code {
+        case "+":
             return .create
-        }
-
-        switch code.first {
-        case ">", "<", "c", "h":
+        case "*":
             return .update
-        default:
+        case "-":
+            return includeDeletes ? .delete : nil
+        case "!":
             return .other
+        default:
+            return nil
         }
     }
 }

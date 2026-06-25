@@ -46,11 +46,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 880, minHeight: 560)
         .onAppear {
-            model.refreshPendingItems()
-            model.jobsDidChange()
-        }
-        .onChange(of: model.jobs) { _, _ in
-            model.jobsDidChange()
+            model.start()
         }
     }
 
@@ -135,6 +131,12 @@ private struct JobDetailView: View {
             HStack(spacing: 18) {
                 Toggle("Delete destination extras", isOn: $job.deleteExtraneousFiles)
                 Toggle("Watch for changes", isOn: $job.watchEnabled)
+                Stepper(
+                    "Concurrent transfers: \(job.rcloneTransferCount)",
+                    value: $job.rcloneTransferCount,
+                    in: SyncJob.minRcloneTransferCount...SyncJob.maxRcloneTransferCount
+                )
+                .fixedSize()
 
                 if model.activeWatchCount > 0 {
                     Label("\(model.activeWatchCount) watching", systemImage: "eye.fill")

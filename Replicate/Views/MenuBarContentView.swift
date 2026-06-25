@@ -54,8 +54,7 @@ struct MenuBarContentView: View {
             }
         }
         .onAppear {
-            model.refreshPendingItems()
-            model.jobsDidChange()
+            model.start()
         }
     }
 

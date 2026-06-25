@@ -6,10 +6,7 @@ import Foundation
 final class ReplicateAppModel: ObservableObject {
     @Published var jobs: [SyncJob] {
         didSet {
-            store.save(jobs)
-            if let selectedJobID, !jobs.contains(where: { $0.id == selectedJobID }) {
-                self.selectedJobID = jobs.first?.id
-            }
+            handleJobsMutation(from: oldValue)
         }
     }
 
@@ -22,28 +19,39 @@ final class ReplicateAppModel: ObservableObject {
     @Published var watchStatusMessage: String?
     @Published var lastSyncOutput = ""
 
-    private let store: JobStore
-    private let rsyncService: RsyncService
-    private let fswatchService: FswatchService
+    private let store: any JobStoring
+    private let rcloneService: any RcloneServicing
+    private let fswatchService: any FswatchServicing
+    private let resolver: any SyncJobResolving
+    private let pendingRefreshDebounceNanoseconds: UInt64
+
+    private var didStart = false
     private var queuedSyncJobIDs: Set<UUID> = []
+    private var pendingRefreshRequest: PendingRefreshRequest?
+    private var pendingRefreshDebounceTask: Task<Void, Never>?
     private var watchDebounceTasks: [UUID: Task<Void, Never>] = [:]
 
     convenience init() {
         self.init(
             store: JobStore(),
-            rsyncService: RsyncService(),
-            fswatchService: FswatchService()
+            rcloneService: RcloneService(),
+            fswatchService: FswatchService(),
+            resolver: BookmarkSyncJobResolver()
         )
     }
 
     init(
-        store: JobStore,
-        rsyncService: RsyncService,
-        fswatchService: FswatchService
+        store: any JobStoring,
+        rcloneService: any RcloneServicing,
+        fswatchService: any FswatchServicing,
+        resolver: any SyncJobResolving,
+        pendingRefreshDebounceNanoseconds: UInt64 = 400_000_000
     ) {
         self.store = store
-        self.rsyncService = rsyncService
+        self.rcloneService = rcloneService
         self.fswatchService = fswatchService
+        self.resolver = resolver
+        self.pendingRefreshDebounceNanoseconds = pendingRefreshDebounceNanoseconds
         self.jobs = Self.clearingCancellationErrors(from: store.load())
         self.selectedJobID = jobs.first?.id
         self.watchStatusMessage = fswatchService.executableStatusMessage()
@@ -82,20 +90,23 @@ final class ReplicateAppModel: ObservableObject {
         return "checkmark.circle"
     }
 
+    func start() {
+        guard !didStart else { return }
+        didStart = true
+        refreshWatchers()
+        requestPendingItemsRefresh(matching: nil, debounceNanoseconds: 0)
+    }
+
     func addJob() {
         let job = SyncJob(name: "Sync Job \(jobs.count + 1)")
         jobs.append(job)
         selectedJobID = job.id
-        refreshWatchers()
     }
 
     func deleteSelectedJob() {
         guard let selectedJobID else { return }
-        fswatchService.stop(jobID: selectedJobID)
         jobs.removeAll { $0.id == selectedJobID }
-        pendingItems.removeAll { $0.jobID == selectedJobID }
         self.selectedJobID = jobs.first?.id
-        refreshWatchers()
     }
 
     func jobsDidChange() {
@@ -115,26 +126,24 @@ final class ReplicateAppModel: ObservableObject {
     }
 
     func refreshPendingItems() {
-        Task {
-            await refreshPendingItems(matching: nil)
-        }
+        requestPendingItemsRefresh(matching: nil, debounceNanoseconds: 0)
     }
 
     func syncAll() {
         let jobIDs = Set(jobs.filter(\.isEnabled).map(\.id))
         Task {
-            await sync(jobIDs: jobIDs)
+            await requestSync(jobIDs: jobIDs)
         }
     }
 
     func sync(jobID: UUID) {
         Task {
-            await sync(jobIDs: [jobID])
+            await requestSync(jobIDs: [jobID])
         }
     }
 
     func stopSync() {
-        rsyncService.cancel()
+        rcloneService.cancel()
         statusMessage = "Stopping sync..."
     }
 
@@ -172,16 +181,125 @@ final class ReplicateAppModel: ObservableObject {
                 }
                 job.lastErrorMessage = nil
             }
-            refreshWatchers()
-            refreshPendingItems()
         } catch {
             setError(error.localizedDescription, for: jobID)
         }
     }
 
-    private func refreshPendingItems(matching jobIDs: Set<UUID>?) async {
+    private func handleJobsMutation(from oldJobs: [SyncJob]) {
+        store.save(jobs)
+
+        if let selectedJobID, !jobs.contains(where: { $0.id == selectedJobID }) {
+            self.selectedJobID = jobs.first?.id
+        }
+
+        handleJobsChanged(from: oldJobs)
+    }
+
+    private func handleJobsChanged(from oldJobs: [SyncJob]) {
+        let oldJobsByID = Self.jobsByID(oldJobs)
+        let newJobsByID = Self.jobsByID(jobs)
+        let removedJobIDs = Set(oldJobsByID.keys).subtracting(newJobsByID.keys)
+        var stalePendingJobIDs = removedJobIDs
+        var refreshJobIDs: Set<UUID> = []
+        var shouldRefreshWatchers = !removedJobIDs.isEmpty
+
+        for jobID in removedJobIDs {
+            fswatchService.stop(jobID: jobID)
+            watchDebounceTasks[jobID]?.cancel()
+            watchDebounceTasks[jobID] = nil
+        }
+
+        for job in jobs {
+            guard let oldJob = oldJobsByID[job.id] else {
+                if job.isEnabled && job.isConfigured {
+                    refreshJobIDs.insert(job.id)
+                }
+
+                if job.isEnabled && job.watchEnabled && job.isConfigured {
+                    shouldRefreshWatchers = true
+                }
+                continue
+            }
+
+            if oldJob.displayName != job.displayName {
+                updatePendingJobName(for: job.id, to: job.displayName)
+            }
+
+            if Self.pendingAffectingFieldsChanged(from: oldJob, to: job) {
+                stalePendingJobIDs.insert(job.id)
+                if job.isEnabled && job.isConfigured {
+                    refreshJobIDs.insert(job.id)
+                }
+            }
+
+            if !job.isEnabled || !job.isConfigured {
+                stalePendingJobIDs.insert(job.id)
+            }
+
+            if Self.watcherAffectingFieldsChanged(from: oldJob, to: job) {
+                shouldRefreshWatchers = true
+            }
+        }
+
+        if !stalePendingJobIDs.isEmpty {
+            pendingItems.removeAll { stalePendingJobIDs.contains($0.jobID) }
+            updateIdleStatusFromPendingItems()
+        }
+
+        if shouldRefreshWatchers {
+            refreshWatchers()
+        }
+
+        if !refreshJobIDs.isEmpty {
+            requestPendingItemsRefresh(
+                matching: refreshJobIDs,
+                debounceNanoseconds: pendingRefreshDebounceNanoseconds
+            )
+        }
+    }
+
+    private func updatePendingJobName(for jobID: UUID, to jobName: String) {
+        pendingItems = pendingItems.map { item in
+            item.jobID == jobID ? item.withJobName(jobName) : item
+        }
+    }
+
+    private func requestPendingItemsRefresh(
+        matching jobIDs: Set<UUID>?,
+        debounceNanoseconds: UInt64
+    ) {
+        if let pendingRefreshRequest {
+            self.pendingRefreshRequest = pendingRefreshRequest.merging(matching: jobIDs)
+        } else {
+            pendingRefreshRequest = PendingRefreshRequest(matching: jobIDs)
+        }
+        pendingRefreshDebounceTask?.cancel()
+        pendingRefreshDebounceTask = Task { [weak self] in
+            if debounceNanoseconds > 0 {
+                do {
+                    try await Task.sleep(nanoseconds: debounceNanoseconds)
+                } catch {
+                    return
+                }
+            }
+
+            await self?.drainPendingItemsRefreshQueue()
+        }
+    }
+
+    private func drainPendingItemsRefreshQueue() async {
+        pendingRefreshDebounceTask = nil
+
+        guard !isSyncing, !isRefreshingPendingItems else { return }
+        guard let request = pendingRefreshRequest else { return }
+        pendingRefreshRequest = nil
+
+        await performPendingItemsRefresh(matching: request.jobIDs)
+    }
+
+    private func performPendingItemsRefresh(matching jobIDs: Set<UUID>?) async {
         isRefreshingPendingItems = true
-        defer { isRefreshingPendingItems = false }
 
         var refreshedItems: [PendingItem] = []
         let jobsToRefresh = jobs.filter { job in
@@ -189,16 +307,32 @@ final class ReplicateAppModel: ObservableObject {
         }
 
         for job in jobsToRefresh {
+            let signature = PendingRefreshSignature(job)
+
             do {
-                let resolvedJob = try resolve(job)
-                let items = try await rsyncService.preview(resolvedJob)
-                refreshedItems.append(contentsOf: items)
+                let resolvedJob = try resolver.resolve(job)
+                let items = try await rcloneService.preview(resolvedJob)
+
+                guard
+                    let currentJob = jobs.first(where: { $0.id == job.id }),
+                    currentJob.isEnabled,
+                    currentJob.isConfigured,
+                    PendingRefreshSignature(currentJob) == signature
+                else {
+                    continue
+                }
+
+                refreshedItems.append(contentsOf: items.map { $0.withJobName(currentJob.displayName) })
                 clearError(for: job.id)
             } catch ProcessRunnerError.cancelled {
                 statusMessage = "Refresh stopped."
+                isRefreshingPendingItems = false
+                await operationDidFinish(updateStatusFromPendingItems: false)
                 return
             } catch is CancellationError {
                 statusMessage = "Refresh stopped."
+                isRefreshingPendingItems = false
+                await operationDidFinish(updateStatusFromPendingItems: false)
                 return
             } catch {
                 setError(error.localizedDescription, for: job.id)
@@ -208,22 +342,28 @@ final class ReplicateAppModel: ObservableObject {
         if let jobIDs {
             pendingItems.removeAll { jobIDs.contains($0.jobID) }
             pendingItems.append(contentsOf: refreshedItems)
-            pendingItems.sort { $0.jobName.localizedStandardCompare($1.jobName) == .orderedAscending }
         } else {
             pendingItems = refreshedItems
         }
 
+        sortPendingItems()
         statusMessage = pendingItems.isEmpty ? "Ready" : pendingCountText
+        isRefreshingPendingItems = false
+        await operationDidFinish(updateStatusFromPendingItems: false)
     }
 
-    private func sync(jobIDs: Set<UUID>) async {
+    private func requestSync(jobIDs: Set<UUID>) async {
         guard !jobIDs.isEmpty else { return }
 
-        if isSyncing {
+        if isSyncing || isRefreshingPendingItems {
             queuedSyncJobIDs.formUnion(jobIDs)
             return
         }
 
+        await performSync(jobIDs: jobIDs)
+    }
+
+    private func performSync(jobIDs: Set<UUID>) async {
         isSyncing = true
         statusMessage = "Syncing..."
 
@@ -233,11 +373,13 @@ final class ReplicateAppModel: ObservableObject {
 
         for job in jobsToSync {
             do {
-                let resolvedJob = try resolve(job)
-                let summary = try await rsyncService.sync(resolvedJob)
+                let resolvedJob = try resolver.resolve(job)
+                let summary = try await rcloneService.sync(resolvedJob)
                 lastSyncOutput = summary.output
-                markRunCompleted(for: job.id, at: summary.completedAt)
-                clearError(for: job.id)
+                if jobs.contains(where: { $0.id == job.id }) {
+                    markRunCompleted(for: job.id, at: summary.completedAt)
+                    clearError(for: job.id)
+                }
             } catch ProcessRunnerError.cancelled {
                 statusMessage = "Sync stopped."
                 break
@@ -250,13 +392,28 @@ final class ReplicateAppModel: ObservableObject {
         }
 
         isSyncing = false
-        await refreshPendingItems(matching: jobIDs)
+        requestPendingItemsRefresh(matching: jobIDs, debounceNanoseconds: 0)
+        await drainPendingItemsRefreshQueue()
+        await drainQueuedSyncIfNeeded()
+    }
+
+    private func operationDidFinish(updateStatusFromPendingItems: Bool = true) async {
+        if updateStatusFromPendingItems {
+            updateIdleStatusFromPendingItems()
+        }
+
+        await drainQueuedSyncIfNeeded()
+        await drainPendingItemsRefreshQueue()
+    }
+
+    private func drainQueuedSyncIfNeeded() async {
+        guard !isSyncing, !isRefreshingPendingItems else { return }
 
         let queued = queuedSyncJobIDs
         queuedSyncJobIDs.removeAll()
-        if !queued.isEmpty {
-            await sync(jobIDs: queued)
-        }
+
+        guard !queued.isEmpty else { return }
+        await performSync(jobIDs: queued)
     }
 
     private func refreshWatchers() {
@@ -269,7 +426,7 @@ final class ReplicateAppModel: ObservableObject {
         let watchJobs = jobs.compactMap { job -> ResolvedSyncJob? in
             guard job.isEnabled, job.watchEnabled, job.isConfigured else { return nil }
             do {
-                return try resolve(job)
+                return try resolver.resolve(job)
             } catch {
                 setError(error.localizedDescription, for: job.id)
                 return nil
@@ -298,31 +455,16 @@ final class ReplicateAppModel: ObservableObject {
     }
 
     private func autoSyncAfterWatchEvent(jobID: UUID) async {
-        await refreshPendingItems(matching: [jobID])
+        requestPendingItemsRefresh(matching: [jobID], debounceNanoseconds: 0)
+        await drainPendingItemsRefreshQueue()
+
+        if isSyncing || isRefreshingPendingItems {
+            queuedSyncJobIDs.insert(jobID)
+            return
+        }
+
         guard pendingItems.contains(where: { $0.jobID == jobID }) else { return }
-        await sync(jobIDs: [jobID])
-    }
-
-    private func resolve(_ job: SyncJob) throws -> ResolvedSyncJob {
-        guard let sourceBookmark = job.sourceBookmark else {
-            throw SyncJobResolutionError.missingSource
-        }
-
-        guard let destinationBookmark = job.destinationBookmark else {
-            throw SyncJobResolutionError.missingDestination
-        }
-
-        let source = try BookmarkResolver.resolve(sourceBookmark, label: "Source").url
-        let destination = try BookmarkResolver.resolve(destinationBookmark, label: "Destination").url
-        return ResolvedSyncJob(
-            job: job,
-            sourceURL: source,
-            destinationURL: destination,
-            scopedAccess: [
-                SecurityScopedURLAccess(url: source),
-                SecurityScopedURLAccess(url: destination)
-            ]
-        )
+        await requestSync(jobIDs: [jobID])
     }
 
     private func updateJob(_ jobID: UUID, _ mutate: (inout SyncJob) -> Void) {
@@ -354,6 +496,22 @@ final class ReplicateAppModel: ObservableObject {
         statusMessage = message
     }
 
+    private func sortPendingItems() {
+        pendingItems.sort { lhs, rhs in
+            let jobComparison = lhs.jobName.localizedStandardCompare(rhs.jobName)
+            if jobComparison != .orderedSame {
+                return jobComparison == .orderedAscending
+            }
+
+            return lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
+        }
+    }
+
+    private func updateIdleStatusFromPendingItems() {
+        guard !isSyncing, !isRefreshingPendingItems else { return }
+        statusMessage = pendingItems.isEmpty ? "Ready" : pendingCountText
+    }
+
     private static func clearingCancellationErrors(from jobs: [SyncJob]) -> [SyncJob] {
         jobs.map { job in
             var copy = job
@@ -366,5 +524,88 @@ final class ReplicateAppModel: ObservableObject {
 
     private static func isCancellationMessage(_ message: String) -> Bool {
         message.contains("CancellationError")
+    }
+
+    private static func jobsByID(_ jobs: [SyncJob]) -> [UUID: SyncJob] {
+        Dictionary(jobs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private static func pendingAffectingFieldsChanged(from oldJob: SyncJob, to newJob: SyncJob) -> Bool {
+        oldJob.isEnabled != newJob.isEnabled ||
+            oldJob.deleteExtraneousFiles != newJob.deleteExtraneousFiles ||
+            oldJob.sourceBookmark != newJob.sourceBookmark ||
+            oldJob.destinationBookmark != newJob.destinationBookmark
+    }
+
+    private static func watcherAffectingFieldsChanged(from oldJob: SyncJob, to newJob: SyncJob) -> Bool {
+        oldJob.isEnabled != newJob.isEnabled ||
+            oldJob.watchEnabled != newJob.watchEnabled ||
+            oldJob.sourceBookmark != newJob.sourceBookmark ||
+            oldJob.destinationBookmark != newJob.destinationBookmark
+    }
+
+#if DEBUG
+    func waitForIdleForTesting() async {
+        for _ in 0..<100 {
+            if !isSyncing,
+               !isRefreshingPendingItems,
+               queuedSyncJobIDs.isEmpty,
+               pendingRefreshRequest == nil,
+               pendingRefreshDebounceTask == nil {
+                return
+            }
+
+            await Task.yield()
+        }
+    }
+#endif
+}
+
+private enum PendingRefreshRequest {
+    case all
+    case jobs(Set<UUID>)
+
+    init(matching jobIDs: Set<UUID>?) {
+        if let jobIDs {
+            self = .jobs(jobIDs)
+        } else {
+            self = .all
+        }
+    }
+
+    var jobIDs: Set<UUID>? {
+        switch self {
+        case .all:
+            return nil
+        case .jobs(let jobIDs):
+            return jobIDs
+        }
+    }
+
+    func merging(matching jobIDs: Set<UUID>?) -> PendingRefreshRequest {
+        guard let jobIDs else { return .all }
+
+        switch self {
+        case .all:
+            return .all
+        case .jobs(let existingJobIDs):
+            return .jobs(existingJobIDs.union(jobIDs))
+        }
+    }
+}
+
+private struct PendingRefreshSignature: Equatable {
+    let id: UUID
+    let isEnabled: Bool
+    let deleteExtraneousFiles: Bool
+    let sourceBookmark: Data?
+    let destinationBookmark: Data?
+
+    init(_ job: SyncJob) {
+        id = job.id
+        isEnabled = job.isEnabled
+        deleteExtraneousFiles = job.deleteExtraneousFiles
+        sourceBookmark = job.sourceBookmark
+        destinationBookmark = job.destinationBookmark
     }
 }
